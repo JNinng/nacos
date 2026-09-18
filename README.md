@@ -1,5 +1,8 @@
 # nacos
 
+> **已封存**（2026-09-19）：组件并入 go_template 模板内置组件库
+> `internal/components/nacos`（随模板分发，删留自便）。本仓库保留 v0.1.0 历史与离线测试，不再演进。
+
 [go_template](https://github.com/JNinng/go_template) 体系的原生组件资产：nacos 双角色客户端（单仓库单包）。模板侧的接入示例与组件约定见其 [docs/DESIGN.md](https://github.com/JNinng/go_template/blob/master/docs/DESIGN.md)。
 
 - **CfgClient**——配置中心客户端，Source 兼容签名（结构化类型满足，零 import 模板即可直传 `config.Tree.Attach`）
