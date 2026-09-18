@@ -1,6 +1,6 @@
 # nacos
 
-go_template 体系的原生组件资产：nacos 双角色客户端（单仓库单包）。
+[go_template](https://github.com/JNinng/go_template) 体系的原生组件资产：nacos 双角色客户端（单仓库单包）。模板侧的接入示例与组件约定见其 [docs/DESIGN.md](https://github.com/JNinng/go_template/blob/master/docs/DESIGN.md)。
 
 - **CfgClient**——配置中心客户端，Source 兼容签名（结构化类型满足，零 import 模板即可直传 `config.Tree.Attach`）
 - **Reg**——服务注册客户端，标准生命周期签名（`New` / `Start` / `Stop`）
