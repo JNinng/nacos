@@ -1,7 +1,7 @@
 // Package nacos 是 go_template 体系下的原生组件资产（单仓库单包、两客户端）：
 //
 //   - CfgClient——配置中心客户端，Source 兼容签名（结构化类型满足，
-//     零 import 模板即可直传 config.Tree.Attach）；
+//     无需 import 模板包即可直传 config.Tree.Attach）；
 //   - Reg——服务注册客户端，标准生命周期签名（New / Start / Stop）。
 //
 // 两者分立配置（nacos.config / nacos.registrar 子节）、独立客户端、互不
@@ -53,8 +53,8 @@ type Config struct {
 	Registrar ServiceRegistry `yaml:"registrar"` // 服务注册子节
 }
 
-// Default 返回 nacos 节默认值基座（初始解码与重解码共用；本资产不热更，
-// 仅初始解码）。配置中心缺省启用 + fail；注册缺省禁用（启用需实例端口）。
+// Default 返回 nacos 节默认值基座；本资产不热更，仅在初始解码时使用。
+// 配置中心缺省启用 + fail；注册缺省禁用（启用需实例端口）。
 func Default() Config {
 	return Config{
 		Config: ConfigCenter{
@@ -76,9 +76,9 @@ func Default() Config {
 // Option 是两个客户端共用的构造选项。
 type Option func(*options)
 
-// WithLogger 显式注入日志面（保留给测试捕获）。缺省不注入——调用点
-// 动态读 slog.Default()：本资产可能在 wireSource 构造（早于日志装配），
-// 构造期快照会把告警固定在过期后端上。
+// WithLogger 显式注入日志面，覆盖缺省动态读（测试捕获、嵌入方定制后端）。
+// 缺省不注入——调用点动态读 slog.Default()：本资产可能在 wireSource 构造
+// （早于日志装配），构造期快照会把告警固定在过期后端上。
 func WithLogger(l *slog.Logger) Option {
 	return func(o *options) { o.logger = l }
 }
@@ -96,7 +96,7 @@ func newOptions(opts []Option) options {
 	return o
 }
 
-// logWarn 记策略降级 / 数据异常类告警（Warn：显式决策或旁路角色，无需即时告警）。
+// logWarn 记数据异常与清理失败类告警（Warn：不阻断主流程）。
 func (o options) logWarn(ctx context.Context, msg string, attrs ...slog.Attr) {
 	o.current().LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
 }

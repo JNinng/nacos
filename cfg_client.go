@@ -13,7 +13,7 @@ import (
 )
 
 // sourceLike 声明 Source 兼容签名（结构化类型满足）：模板侧 config.Source
-// 与此签名一致，CfgClient 零 import 模板即可直传 Attach。
+// 与此签名一致，CfgClient 无需 import 模板包即可直传 Attach。
 type sourceLike interface {
 	Name() string
 	Start(ctx context.Context, push func(map[string]any)) error
@@ -27,7 +27,7 @@ type CfgClient struct {
 	cfg ConfigCenter // 构造期校验过的配置（启动期配置，不热更）
 	opt options      // 日志面等选项
 
-	mu     sync.Mutex                  // 保护 client 与 listenParam（Start/关闭互斥）
+	mu     sync.Mutex                  // 保护 client 与 listen（Start/关闭互斥）
 	client config_client.IConfigClient // SDK 客户端，Start 成功后非 nil
 	listen vo.ConfigParam              // 监听参数（取消监听时复用）
 }
@@ -52,7 +52,7 @@ func (c *CfgClient) Name() string { return "nacos" }
 // Start 连接配置中心、拉取初始全量内容并订阅变更；阻塞直至 ctx 取消。
 // 首份快照经 push 合并完成后返回语义由模板侧 Attach 保证（同步等待）。
 //
-// 不可达与初始内容解析失败的归化（unreachable 策略）：
+// 不可达与初始内容解析失败的处置（unreachable 策略）：
 //   - fail（缺省）→ 返回 error，装配点 fail-fast；
 //   - disable → 记显著告警、push 空快照（等效禁用，进程以纯本地配置运行），
 //     其后不再推送（热更停摆），阻塞至 ctx 取消。
@@ -123,7 +123,7 @@ func (c *CfgClient) connect(ctx context.Context, push func(map[string]any)) (map
 					slog.String("data_id", dataId), slog.Any("error", err))
 				return
 			}
-			push(snap) // 捕获自 Start 的 push
+			push(snap) // 捕获自 Start 的 ctx 与 push
 		},
 	}
 	if err := client.ListenConfig(listen); err != nil {

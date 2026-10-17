@@ -36,7 +36,7 @@ func TestDefault(t *testing.T) {
 	d := Default()
 	// 配置中心缺省启用 + fail；注册角色级开关缺省禁用（启用需实例端口）
 	if !d.Config.Enabled || d.Config.Unreachable != "fail" || d.Registrar.Unreachable != "fail" {
-		t.Errorf("Default() = %+v（fail-fast 缺省）", d)
+		t.Errorf("Default() = %+v (want fail-fast defaults)", d)
 	}
 	if d.Registrar.Enabled {
 		t.Error("registrar.enabled must default to false")
@@ -59,7 +59,7 @@ func TestNewCfgClient_Validation(t *testing.T) {
 	for _, addr := range []string{"", "127.0.0.1", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:abc"} {
 		bad := cfg
 		bad.Config.Addr = addr
-		// 地址畸形不经策略归化：disable 下同样必须 fail-fast
+		// 地址畸形不经策略处置：disable 下同样必须 fail-fast
 		bad.Config.Unreachable = "disable"
 		if _, err := NewCfgClient(bad); err == nil {
 			t.Errorf("addr %q must be rejected", addr)
