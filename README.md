@@ -16,7 +16,7 @@
 go get github.com/jninng/nacos
 ```
 
-Go 版本要求：1.23+。被包装库：`github.com/nacos-group/nacos-sdk-go/v2`（gRPC 协议）。依赖 observ（日志契约）。
+Go 版本要求：1.23+。被包装库：`github.com/nacos-group/nacos-sdk-go/v2`（gRPC 协议）。日志面为标准库 `*slog.Logger`，无第三方日志依赖。
 
 ## 配置节（可粘贴）
 
@@ -80,7 +80,7 @@ nacos:
 | `NewReg(cfg Config, serviceName string, port int, opts ...Option) (*Reg, error)` | 构造即校验；enabled=false 返回旁路实例（Start 空操作） |
 | `(*Reg).Start(ctx) error` | 注册实例（Ephemeral，心跳由 SDK 维持） |
 | `(*Reg).Stop(ctx) error` | 注销 + 释放连接；幂等可重入 |
-| `WithLogger(observ.Logger) Option` | 显式注入日志面（保留给测试捕获；缺省动态读，见下） |
+| `WithLogger(*slog.Logger) Option` | 显式注入日志面（保留给测试捕获；缺省动态读，见下） |
 
 ## 装配示例（模板侧）
 
@@ -109,6 +109,6 @@ func wire(t *config.Tree, r *runner, meta app.Meta) error {
 - 回调（`push`）在 SDK 回调 goroutine 内同步执行且快速返回；不阻塞不重入
 - 全量快照语义：每次变更推送整份 dataId 内容解析结果；空内容 = 空快照（删除语义）
 - 变更解析失败：告警丢弃本次、维持上一有效快照（最终一致）
-- **日志缺省动态读 `observ.DefaultLogger()`（非构造期快照）**：本资产可能在 `wireSource` 构造（早于日志装配），快照会把告警永久固定在 Noop
-- **不可达策略降级告警走双通道**：observ 动态读 + 直写 stderr——降级发生在引导窗口时 observ 可能仍是 Noop，stderr 保证高信号运维事实永不丢失
+- **日志缺省动态读 `slog.Default()`（非构造期快照）**：本资产可能在 `wireSource` 构造（早于日志装配），快照会把告警固定在过期后端上；应用 `slog.SetDefault` 换后端立即生效。未装配前 slog 默认 logger 直写 stderr（Info 起步），引导期告警可见而非静默——需保持静默的应用以 `WithLogger` 显式注入丢弃实现
+- **不可达策略降级告警走双通道**：日志面 + 直写 stderr——降级发生在引导窗口时日志后端可能尚未就绪，stderr 保证高信号运维事实永不丢失
 - 日志消息/字段 snake_case；进程内无全局状态重赋值

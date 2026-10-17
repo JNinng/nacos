@@ -3,7 +3,6 @@ module github.com/jninng/nacos
 go 1.23
 
 require (
-	github.com/jninng/observ v0.1.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.1
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )

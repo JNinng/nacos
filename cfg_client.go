@@ -27,9 +27,9 @@ type CfgClient struct {
 	cfg ConfigCenter // 构造期校验过的配置（启动期配置，不热更）
 	opt options      // 日志面等选项
 
-	mu     sync.Mutex        // 保护 client 与 listenParam（Start/关闭互斥）
+	mu     sync.Mutex                  // 保护 client 与 listenParam（Start/关闭互斥）
 	client config_client.IConfigClient // SDK 客户端，Start 成功后非 nil
-	listen vo.ConfigParam    // 监听参数（取消监听时复用）
+	listen vo.ConfigParam              // 监听参数（取消监听时复用）
 }
 
 // NewCfgClient 构造配置中心客户端：构造即校验（策略取值、地址格式），
@@ -58,21 +58,21 @@ func (c *CfgClient) Name() string { return "nacos" }
 //     其后不再推送（热更停摆），阻塞至 ctx 取消。
 //
 // 运行期（首快照之后）的变更解析失败：记告警丢弃本次、维持上一有效快照
-//（全量快照语义下最终一致）。
+// （全量快照语义下最终一致）。
 func (c *CfgClient) Start(ctx context.Context, push func(map[string]any)) error {
 	if !c.cfg.Enabled {
-		c.opt.logInfo("nacos_config_disabled")
+		c.opt.logInfo(ctx, "nacos_config_disabled")
 		push(map[string]any{})
 		<-ctx.Done()
 		return nil
 	}
 
-	snap, client, listen, err := c.connect(push)
+	snap, client, listen, err := c.connect(ctx, push)
 	if err != nil {
 		if c.cfg.Unreachable == "disable" {
 			// 显式降级：双通道告警后以纯本地配置继续（空快照解锁 Attach），
 			// 热更停摆——阻塞至取消，绝不把降级当失败上抛
-			c.opt.logPolicyWarn("nacos_config_unreachable_disabled",
+			c.opt.logPolicyWarn(ctx, "nacos_config_unreachable_disabled",
 				slog.String("addr", c.cfg.Addr), slog.Any("error", err))
 			push(map[string]any{})
 			<-ctx.Done()
@@ -102,7 +102,7 @@ func (c *CfgClient) Start(ctx context.Context, push func(map[string]any)) error 
 }
 
 // connect 建立连接、订阅变更并拉取初始内容；任一步失败即回收半启动资源。
-func (c *CfgClient) connect(push func(map[string]any)) (map[string]any, config_client.IConfigClient, vo.ConfigParam, error) {
+func (c *CfgClient) connect(ctx context.Context, push func(map[string]any)) (map[string]any, config_client.IConfigClient, vo.ConfigParam, error) {
 	param, err := newClientParam(c.cfg.Addr, c.cfg.Namespace, c.cfg.Username, c.cfg.Password)
 	if err != nil {
 		return nil, nil, vo.ConfigParam{}, err
@@ -119,7 +119,7 @@ func (c *CfgClient) connect(push func(map[string]any)) (map[string]any, config_c
 			snap, err := parseContent(data)
 			if err != nil {
 				// 数据异常（非技术故障）：告警丢弃，维持上一有效快照
-				c.opt.logWarn("nacos_config_parse_failed",
+				c.opt.logWarn(ctx, "nacos_config_parse_failed",
 					slog.String("data_id", dataId), slog.Any("error", err))
 				return
 			}

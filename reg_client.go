@@ -19,9 +19,9 @@ type Reg struct {
 	port        int             // 注册的服务端口（启用时必填 > 0）
 	opt         options         // 日志面等选项
 
-	ip      string // 注册用的本机 IP（Start 时解析）
+	ip      string                      // 注册用的本机 IP（Start 时解析）
 	client  naming_client.INamingClient // SDK 客户端，注册成功后非 nil
-	started bool    // 注册成功标记（Stop 判定是否需注销）
+	started bool                        // 注册成功标记（Stop 判定是否需注销）
 }
 
 // NewReg 构造注册客户端：构造即校验（策略取值、地址格式、启用时端口必填），
@@ -54,7 +54,7 @@ func NewReg(cfg Config, serviceName string, port int, opts ...Option) (*Reg, err
 // Warn，靠告警巡检兜住。
 func (r *Reg) Start(ctx context.Context) error {
 	if !r.cfg.Enabled {
-		r.opt.logInfo("nacos_registrar_disabled")
+		r.opt.logInfo(ctx, "nacos_registrar_disabled")
 		return nil
 	}
 
@@ -65,7 +65,7 @@ func (r *Reg) Start(ctx context.Context) error {
 		var err error
 		ip, err = localIP(r.cfg.Addr)
 		if err != nil {
-			return r.failOrSkip(err)
+			return r.failOrSkip(ctx, err)
 		}
 	}
 	r.ip = ip
@@ -76,7 +76,7 @@ func (r *Reg) Start(ctx context.Context) error {
 	}
 	client, err := clients.NewNamingClient(param)
 	if err != nil {
-		return r.failOrSkip(err)
+		return r.failOrSkip(ctx, err)
 	}
 	ok, err := client.RegisterInstance(vo.RegisterInstanceParam{
 		Ip:          ip,
@@ -93,12 +93,12 @@ func (r *Reg) Start(ctx context.Context) error {
 		if err == nil {
 			err = fmt.Errorf("nacos registrar: register instance returned false")
 		}
-		return r.failOrSkip(err)
+		return r.failOrSkip(ctx, err)
 	}
 
 	r.client = client
 	r.started = true
-	r.opt.logInfo("nacos_register_success",
+	r.opt.logInfo(ctx, "nacos_register_success",
 		slog.String("service_name", r.serviceName),
 		slog.String("addr", r.cfg.Addr),
 		slog.String("service_ip", ip),
@@ -120,7 +120,7 @@ func (r *Reg) Stop(ctx context.Context) error {
 			Ephemeral:   true,
 		}); err != nil {
 			// 旁路清理失败：告警即可，不阻断停机流程
-			r.opt.logWarn("nacos_deregister_failed",
+			r.opt.logWarn(ctx, "nacos_deregister_failed",
 				slog.String("service_name", r.serviceName), slog.Any("error", err))
 		}
 	}
@@ -131,9 +131,9 @@ func (r *Reg) Stop(ctx context.Context) error {
 }
 
 // failOrSkip 按策略归化注册期错误。
-func (r *Reg) failOrSkip(err error) error {
+func (r *Reg) failOrSkip(ctx context.Context, err error) error {
 	if r.cfg.Unreachable == "disable" {
-		r.opt.logPolicyWarn("nacos_registrar_unreachable_disabled",
+		r.opt.logPolicyWarn(ctx, "nacos_registrar_unreachable_disabled",
 			slog.String("addr", r.cfg.Addr), slog.Any("error", err))
 		return nil // 旁路降级：显式声明，进程继续运行
 	}

@@ -10,6 +10,7 @@
 package nacos
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -18,8 +19,6 @@ import (
 
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
-
-	"github.com/jninng/observ"
 )
 
 // ConfigCenter 为 nacos.config 子节（配置中心角色）。
@@ -36,7 +35,7 @@ type ConfigCenter struct {
 
 // ServiceRegistry 为 nacos.registrar 子节（服务注册角色）。
 // 实例标识（service name / port）不经配置，由装配点以参数显式传入
-//（service name 传模板元数据 meta.Name）。
+// （service name 传模板元数据 meta.Name）。
 type ServiceRegistry struct {
 	Enabled     bool   `yaml:"enabled"`     // 角色开关，缺省 false——注册需显式提供实例端口，缺省开启只会保证失败
 	Unreachable string `yaml:"unreachable"` // 不可达策略：fail（缺省）| disable（告警后旁路运行，暂不被发现）
@@ -78,14 +77,14 @@ func Default() Config {
 type Option func(*options)
 
 // WithLogger 显式注入日志面（保留给测试捕获）。缺省不注入——调用点
-// 动态读 observ.DefaultLogger()：本资产可能在 wireSource 构造（早于
-// 日志装配），构造期快照会把告警永久固定在 Noop。
-func WithLogger(l observ.Logger) Option {
+// 动态读 slog.Default()：本资产可能在 wireSource 构造（早于日志装配），
+// 构造期快照会把告警固定在过期后端上。
+func WithLogger(l *slog.Logger) Option {
 	return func(o *options) { o.logger = l }
 }
 
 type options struct {
-	logger observ.Logger // 显式注入的日志面；nil 表示动态读默认
+	logger *slog.Logger // 显式注入的日志面；nil 表示动态读默认
 }
 
 // newOptions 应用全部选项。
@@ -98,28 +97,28 @@ func newOptions(opts []Option) options {
 }
 
 // logWarn 记策略降级 / 数据异常类告警（Warn：显式决策或旁路角色，无需即时告警）。
-func (o options) logWarn(msg string, attrs ...slog.Attr) {
-	o.current().Log(slog.LevelWarn, msg, attrs...)
+func (o options) logWarn(ctx context.Context, msg string, attrs ...slog.Attr) {
+	o.current().LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
 }
 
 // logInfo 记生命周期关键节点（Info）。
-func (o options) logInfo(msg string, attrs ...slog.Attr) {
-	o.current().Log(slog.LevelInfo, msg, attrs...)
+func (o options) logInfo(ctx context.Context, msg string, attrs ...slog.Attr) {
+	o.current().LogAttrs(ctx, slog.LevelInfo, msg, attrs...)
 }
 
 // current 返回生效的日志面：显式注入优先，否则动态读默认（换后端立即生效）。
-func (o options) current() observ.Logger {
+func (o options) current() *slog.Logger {
 	if o.logger != nil {
 		return o.logger
 	}
-	return observ.DefaultLogger()
+	return slog.Default()
 }
 
-// logPolicyWarn 记不可达策略降级告警：observ 动态读 + 直写 stderr 双通道。
-// 降级事件发生在引导窗口（wireSource 早于日志装配）时 observ 可能仍是
-// Noop，stderr 保证高信号运维事实永不丢失；日志就绪后最多重复一行，可接受。
-func (o options) logPolicyWarn(msg string, attrs ...slog.Attr) {
-	o.current().Log(slog.LevelWarn, msg, attrs...)
+// logPolicyWarn 记不可达策略降级告警：日志面 + 直写 stderr 双通道。
+// 降级事件发生在引导窗口（早于日志装配）时日志后端可能尚未就绪，
+// stderr 保证高信号运维事实永不丢失；就绪后最多重复一行，可接受。
+func (o options) logPolicyWarn(ctx context.Context, msg string, attrs ...slog.Attr) {
+	o.current().LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
 	fmt.Fprintf(os.Stderr, "[WARN] nacos: %s %v\n", msg, attrs)
 }
 
