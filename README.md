@@ -5,7 +5,7 @@
 
 [go_template](https://github.com/JNinng/go_template) 体系的原生组件资产：nacos 双角色客户端（单仓库单包）。模板侧的接入示例与组件约定见其 [docs/DESIGN.md](https://github.com/JNinng/go_template/blob/master/docs/DESIGN.md)。
 
-- **CfgClient**——配置中心客户端，Source 兼容签名（结构化类型满足，零 import 模板即可直传 `config.Tree.Attach`）
+- **CfgClient**——配置中心客户端，Source 兼容签名（结构化类型满足，无需 import 模板包即可直传 `config.Tree.Attach`）
 - **Reg**——服务注册客户端，标准生命周期签名（`New` / `Start` / `Stop`）
 
 两者分立配置、独立客户端、互不共享连接；实例标识（service name / port）由装配点显式传入（service name 传模板元数据 `meta.Name`）。
@@ -80,7 +80,7 @@ nacos:
 | `NewReg(cfg Config, serviceName string, port int, opts ...Option) (*Reg, error)` | 构造即校验；enabled=false 返回旁路实例（Start 空操作） |
 | `(*Reg).Start(ctx) error` | 注册实例（Ephemeral，心跳由 SDK 维持） |
 | `(*Reg).Stop(ctx) error` | 注销 + 释放连接；幂等可重入 |
-| `WithLogger(*slog.Logger) Option` | 显式注入日志面（保留给测试捕获；缺省动态读，见下） |
+| `WithLogger(*slog.Logger) Option` | 显式注入日志面，覆盖缺省动态读（测试捕获、嵌入方定制后端） |
 
 ## 装配示例（模板侧）
 
@@ -109,6 +109,6 @@ func wire(t *config.Tree, r *runner, meta app.Meta) error {
 - 回调（`push`）在 SDK 回调 goroutine 内同步执行且快速返回；不阻塞不重入
 - 全量快照语义：每次变更推送整份 dataId 内容解析结果；空内容 = 空快照（删除语义）
 - 变更解析失败：告警丢弃本次、维持上一有效快照（最终一致）
-- **日志缺省动态读 `slog.Default()`（非构造期快照）**：本资产可能在 `wireSource` 构造（早于日志装配），快照会把告警固定在过期后端上；应用 `slog.SetDefault` 换后端立即生效。未装配前 slog 默认 logger 直写 stderr（Info 起步），引导期告警可见而非静默——需保持静默的应用以 `WithLogger` 显式注入丢弃实现
+- **日志缺省动态读 `slog.Default()`（非构造期快照）**：本资产可能在 `wireSource` 构造（早于日志装配），构造期快照会把告警固定在当时（可能尚未装配）的后端上；应用 `slog.SetDefault` 换后端立即生效。未装配前 slog 默认 logger 直写 stderr（Info 起步），引导期告警可见而非静默——需保持静默的应用以 `WithLogger` 注入丢弃日志器（自定义丢弃 Handler）
 - **不可达策略降级告警走双通道**：日志面 + 直写 stderr——降级发生在引导窗口时日志后端可能尚未就绪，stderr 保证高信号运维事实永不丢失
 - 日志消息/字段 snake_case；进程内无全局状态重赋值
